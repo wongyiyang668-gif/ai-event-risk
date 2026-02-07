@@ -1,0 +1,23 @@
+operational_risk:
+  - outage
+  - system failure
+  - downtime
+  - crash
+
+compliance_risk:
+  - regulation
+  - violation
+  - policy breach
+  - audit
+
+reputational_risk:
+  - complaint
+  - bad review
+  - social media backlash
+  - lawsuit
+
+financial_risk:
+  - loss
+  - fraud
+  - chargeback
+  - revenue drop

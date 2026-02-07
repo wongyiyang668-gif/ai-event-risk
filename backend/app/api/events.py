@@ -1,3 +1,4 @@
+import uuid
 from fastapi import APIRouter, HTTPException
 from datetime import datetime
 from app.agents import pipeline
@@ -6,24 +7,29 @@ from app.db.session import SessionLocal
 from app.models.event import Event
 from app.models.score import ScoreMatrix
 from app.models.review import ReviewCreate, ReviewRead
+from app.models.risk_semantic import RiskSemantic
+from app.models.explainability import Explainability, generate_reasoning
+from app.services import semantics
 
 router = APIRouter()
 
 @router.post("/events")
 def create_event(event: Event):
-    score_matrix = pipeline.process_event(event)
+    score_matrix, risk_semantic, explainability = pipeline.process_event(event)
+
+    event_id = str(uuid.uuid4())
 
     db = SessionLocal()
     try:
         event_orm = EventORM(
-            id=event.id,
+            id=event_id,
             content=event.content,
             source=event.source,
             timestamp=event.timestamp,
             status=event.status.value if hasattr(event.status, "value") else str(event.status),
         )
         score_orm = ScoreORM(
-            event_id=event.id,
+            event_id=event_id,
             signal_strength=score_matrix.signal_strength,
             historical_rarity=score_matrix.historical_rarity,
             trend_acceleration=score_matrix.trend_acceleration,
@@ -36,7 +42,13 @@ def create_event(event: Event):
     finally:
         db.close()
 
-    return {"event": event, "score_matrix": score_matrix}
+    event.id = event_id
+    return {
+        "event": event,
+        "score_matrix": score_matrix,
+        "risk_semantics": risk_semantic,
+        "explainability": explainability
+    }
 
 
 @router.get("/events")
@@ -104,10 +116,15 @@ def get_event(event_id: str):
             ) for r in event_orm.reviews
         ]
         
+        # Calculate risk semantics on-the-fly
+        semantic_scores = semantics.calculate_semantics(event_orm.content)
+        risk_semantic = RiskSemantic(**semantic_scores)
+        
         return {
             "event": event_model,
             "score": score_matrix,
-            "reviews": reviews
+            "reviews": reviews,
+            "risk_semantics": risk_semantic
         }
     finally:
         db.close()

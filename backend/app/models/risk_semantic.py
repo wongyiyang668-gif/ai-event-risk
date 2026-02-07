@@ -1,6 +1,8 @@
 from pydantic import BaseModel
 
+
 class RiskSemantic(BaseModel):
-    label: str
-    description: str
-    severity: float
+    operational_risk: float
+    compliance_risk: float
+    reputational_risk: float
+    financial_risk: float
