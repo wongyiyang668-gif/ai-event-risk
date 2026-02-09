@@ -15,7 +15,7 @@ router = APIRouter()
 
 @router.post("/events")
 def create_event(event: Event):
-    score_matrix, risk_semantic, explainability = pipeline.process_event(event)
+    score_matrix, risk_semantic, explainability, similar_events, llm_output = pipeline.process_event(event)
 
     event_id = str(uuid.uuid4())
 
@@ -47,15 +47,18 @@ def create_event(event: Event):
         "event": event,
         "score_matrix": score_matrix,
         "risk_semantics": risk_semantic,
-        "explainability": explainability
+        "explainability": explainability,
+        "similar_events": similar_events,
+        "risk_summary": llm_output.get("summary"),
+        "recommendation": llm_output.get("recommendation")
     }
 
 
 @router.get("/events")
-def list_events():
+def list_events(limit: int = 100):
     db = SessionLocal()
     try:
-        events = db.query(EventORM).all()
+        events = db.query(EventORM).order_by(EventORM.timestamp.desc()).limit(limit).all()
         results = []
         for event_orm in events:
             score_orm = event_orm.score
@@ -77,6 +80,26 @@ def list_events():
             )
             results.append({"event": event_model, "score_matrix": score_matrix})
         return results
+    finally:
+        db.close()
+
+
+@router.get("/stats")
+def get_stats():
+    db = SessionLocal()
+    try:
+        total_events = db.query(EventORM).count()
+        total_reviews = db.query(ReviewORM).count()
+        
+        # Simple high risk count (naive scan for now)
+        recent_events = db.query(EventORM).order_by(EventORM.timestamp.desc()).limit(10).all()
+        
+        return {
+            "total_events": total_events,
+            "total_reviews": total_reviews,
+            "recent_count": len(recent_events),
+            "status": "operational"
+        }
     finally:
         db.close()
 
